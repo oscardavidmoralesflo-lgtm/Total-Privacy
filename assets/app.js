@@ -1215,7 +1215,7 @@
   var tmDraft = { a: {} };
 
   /* ---------------- Actualización instantánea (botón flotante) ---------------- */
-  var APP_VERSION = "5.0";
+  var APP_VERSION = "5.1";
   var updateFab = $("#updateFab"), remoteVersion = null, updating = false;
   function canUpdate() { return /^https?:$/.test(location.protocol); }
   function checkUpdate(manual) {
@@ -1224,7 +1224,9 @@
       remoteVersion = j && j.version;
       var has = !!remoteVersion && remoteVersion !== APP_VERSION;
       updateFab.classList.toggle("has-update", has);
-      $("#updateFabLabel").textContent = has ? "Nueva versión " + remoteVersion : "Actualizar";
+      $("#burger").classList.toggle("has-update", has);
+      $("#updateFabLabel").textContent = has ? "Instalar versión " + remoteVersion : "Buscar actualizaciones";
+      $("#updateFabSub").textContent = has ? "Hay novedades disponibles" : "Versión " + APP_VERSION + " instalada";
       updateFab.title = has ? "Hay una versión nueva (" + remoteVersion + "). Toca para instalarla." : "Buscar actualizaciones (versión " + APP_VERSION + ")";
       return has;
     }).catch(function () { if (manual) toast("Sin conexión: no se pudo comprobar", "📡"); return false; });
@@ -1245,6 +1247,7 @@
   });
   if (canUpdate()) {
     updateFab.style.display = "";
+    $("#updateFabSub").textContent = "Versión " + APP_VERSION + " instalada";
     setTimeout(function () { checkUpdate(false); }, 2500);
     setInterval(function () { checkUpdate(false); }, 15 * 60 * 1000);
     document.addEventListener("visibilitychange", function () { if (!document.hidden) checkUpdate(false); });

@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png" />
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="assets/styles.css?v=5.0" />
+  <link rel="stylesheet" href="assets/styles.css?v=5.1" />
 </head>
 <body>
   <canvas id="bgCanvas"></canvas>
@@ -38,6 +38,7 @@
         <div id="sideModules"></div>
       </div>
       <div class="side-footer">
+        <button id="updateFab" class="update-fab" style="display:none" aria-label="Buscar e instalar actualizaciones"><span class="uf-ico">⟳</span><span class="uf-txt"><span id="updateFabLabel">Buscar actualizaciones</span><small id="updateFabSub">Versión instalada</small></span></button>
         <div class="rank-card">
           <div class="r-top">
             <div class="r-ico" id="rankIco">🧭</div>
@@ -54,7 +55,7 @@
 
     <div class="main">
       <header class="topbar">
-        <button class="burger" id="burger" aria-label="Abrir menú">☰</button>
+        <button class="burger" id="burger" aria-label="Abrir menú">☰<span class="burger-dot" aria-hidden="true"></span></button>
         <button class="search-trigger" id="searchTrigger">
           <span>🔎</span><span>Buscar lecciones, herramientas, amenazas…</span><kbd>Ctrl K</kbd>
         </button>
@@ -88,21 +89,20 @@
   <!-- Modal genérico -->
   <div class="overlay" id="modal"><div class="modal glass" id="modalBody"></div></div>
 
-  <button id="updateFab" class="update-fab" style="display:none" aria-label="Buscar e instalar actualizaciones"><span class="uf-ico">⟳</span><span id="updateFabLabel">Actualizar</span></button>
   <div id="toasts"></div>
   <canvas id="confetti"></canvas>
 
   <!-- Contenido del curso (datos) -->
-  <script src="assets/data/modules-a.js?v=5.0"></script>
-  <script src="assets/data/modules-b.js?v=5.0"></script>
-  <script src="assets/data/modules-c.js?v=5.0"></script>
-  <script src="assets/data/modules-d.js?v=5.0"></script>
-  <script src="assets/data/extras.js?v=5.0"></script>
-  <script src="assets/data/modules-e.js?v=5.0"></script>
-  <script src="assets/data/refs.js?v=5.0"></script>
-  <script src="assets/data/modules-f.js?v=5.0"></script>
-  <script src="assets/data/modules-g.js?v=5.0"></script>
+  <script src="assets/data/modules-a.js?v=5.1"></script>
+  <script src="assets/data/modules-b.js?v=5.1"></script>
+  <script src="assets/data/modules-c.js?v=5.1"></script>
+  <script src="assets/data/modules-d.js?v=5.1"></script>
+  <script src="assets/data/extras.js?v=5.1"></script>
+  <script src="assets/data/modules-e.js?v=5.1"></script>
+  <script src="assets/data/refs.js?v=5.1"></script>
+  <script src="assets/data/modules-f.js?v=5.1"></script>
+  <script src="assets/data/modules-g.js?v=5.1"></script>
   <!-- Motor de la plataforma -->
-  <script src="assets/app.js?v=5.0"></script>
+  <script src="assets/app.js?v=5.1"></script>
 </body>
 </html>

@@ -698,20 +698,23 @@ p, li { text-wrap: pretty; }
    v5 · Botón de actualización y mapa del temario
    ========================================================= */
 .update-fab {
-  position: fixed; left: calc(var(--sidebar) + 22px); bottom: max(22px, env(safe-area-inset-bottom)); z-index: 90;
-  display: inline-flex; align-items: center; gap: 9px; height: 44px; padding: 0 16px 0 12px; border-radius: 999px;
-  background: rgba(10, 16, 28, 0.88); color: #dbe3ee; border: 1px solid var(--line-2); font-size: 13px; font-weight: 600;
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 14px 34px -14px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.05);
+  width: 100%; display: flex; align-items: center; gap: 11px; padding: 10px 12px; margin-bottom: 10px; border-radius: 12px;
+  background: rgba(148,163,184,.06); color: #cfd7e3; border: 1px solid var(--line); text-align: left; font-size: 13px; position: relative;
   transition: border-color .25s cubic-bezier(.22,.61,.36,1), background-color .25s cubic-bezier(.22,.61,.36,1), color .25s;
 }
-.update-fab:hover { border-color: rgba(0,245,160,.4); color: #fff; }
-.update-fab .uf-ico { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.06); font-size: 15px; transition: transform .6s cubic-bezier(.22,.61,.36,1); }
+.update-fab:hover { border-color: rgba(0,245,160,.35); color: #fff; background: rgba(0,245,160,.05); }
+.update-fab .uf-ico { width: 28px; height: 28px; flex-shrink: 0; border-radius: 9px; display: grid; place-items: center; background: rgba(255,255,255,.06); font-size: 15px; transition: transform .6s cubic-bezier(.22,.61,.36,1); }
 .update-fab:hover .uf-ico { transform: rotate(180deg); }
-.update-fab.has-update { border-color: rgba(0,245,160,.55); color: #eafff6; background: linear-gradient(120deg, rgba(0,245,160,.18), rgba(34,211,238,.12)), rgba(10,16,28,.92); }
+.update-fab .uf-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.update-fab .uf-txt span { font-weight: 600; }
+.update-fab .uf-txt small { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.update-fab.has-update { border-color: rgba(0,245,160,.5); color: #eafff6; background: linear-gradient(120deg, rgba(0,245,160,.14), rgba(34,211,238,.08)); }
 .update-fab.has-update .uf-ico { background: var(--em); color: #03140d; }
-.update-fab.has-update::after { content: ""; position: absolute; inset: -4px; border-radius: inherit; border: 1px solid rgba(0,245,160,.35); animation: ufPulse 2.4s cubic-bezier(.22,.61,.36,1) infinite; pointer-events: none; }
-@keyframes ufPulse { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(1.18); } }
+.update-fab.has-update .uf-txt small { color: var(--em); }
 .update-fab.busy .uf-ico { animation: spin 1s linear infinite; }
+.burger { position: relative; }
+.burger-dot { display: none; position: absolute; top: 7px; right: 7px; width: 9px; height: 9px; border-radius: 50%; background: var(--em); box-shadow: 0 0 0 2px var(--bg), 0 0 10px rgba(0,245,160,.7); }
+.burger.has-update .burger-dot { display: block; }
 
 .cov-list { padding: 8px 14px; }
 .cov-row { display: flex; gap: 14px; align-items: flex-start; padding: 14px 4px; border-bottom: 1px solid var(--line); }
@@ -727,8 +730,7 @@ p, li { text-wrap: pretty; }
 .cov-chip.on { border-color: rgba(0,245,160,.35); color: var(--em); background: rgba(0,245,160,.06); }
 
 @media (max-width: 900px) {
-  .update-fab { left: 16px; bottom: max(16px, env(safe-area-inset-bottom)); height: 42px; }
-  #toasts { left: 16px; right: 16px; bottom: max(70px, calc(env(safe-area-inset-bottom) + 64px)); }
+  #toasts { left: 16px; right: 16px; }
   .toast { max-width: none; }
 }
 @media print { .update-fab { display: none !important; } }
