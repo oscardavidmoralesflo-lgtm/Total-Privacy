@@ -693,6 +693,46 @@ p, li { text-wrap: pretty; }
 /* Imagen del hero: halo estático */
 .emblem::before { content: ""; position: absolute; inset: 18%; border-radius: 50%; background: radial-gradient(circle, rgba(0,245,160,.16), transparent 70%); filter: blur(10px); }
 
+
+/* =========================================================
+   v5 · Botón de actualización y mapa del temario
+   ========================================================= */
+.update-fab {
+  position: fixed; left: calc(var(--sidebar) + 22px); bottom: max(22px, env(safe-area-inset-bottom)); z-index: 90;
+  display: inline-flex; align-items: center; gap: 9px; height: 44px; padding: 0 16px 0 12px; border-radius: 999px;
+  background: rgba(10, 16, 28, 0.88); color: #dbe3ee; border: 1px solid var(--line-2); font-size: 13px; font-weight: 600;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 14px 34px -14px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.05);
+  transition: border-color .25s cubic-bezier(.22,.61,.36,1), background-color .25s cubic-bezier(.22,.61,.36,1), color .25s;
+}
+.update-fab:hover { border-color: rgba(0,245,160,.4); color: #fff; }
+.update-fab .uf-ico { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.06); font-size: 15px; transition: transform .6s cubic-bezier(.22,.61,.36,1); }
+.update-fab:hover .uf-ico { transform: rotate(180deg); }
+.update-fab.has-update { border-color: rgba(0,245,160,.55); color: #eafff6; background: linear-gradient(120deg, rgba(0,245,160,.18), rgba(34,211,238,.12)), rgba(10,16,28,.92); }
+.update-fab.has-update .uf-ico { background: var(--em); color: #03140d; }
+.update-fab.has-update::after { content: ""; position: absolute; inset: -4px; border-radius: inherit; border: 1px solid rgba(0,245,160,.35); animation: ufPulse 2.4s cubic-bezier(.22,.61,.36,1) infinite; pointer-events: none; }
+@keyframes ufPulse { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(1.18); } }
+.update-fab.busy .uf-ico { animation: spin 1s linear infinite; }
+
+.cov-list { padding: 8px 14px; }
+.cov-row { display: flex; gap: 14px; align-items: flex-start; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+.cov-row:last-child { border-bottom: 0; }
+.cov-state { width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; font-size: 11px; border: 1px solid var(--line-2); color: var(--muted); margin-top: 1px; }
+.cov-row.done .cov-state { background: var(--em); border-color: var(--em); color: #03140d; }
+.cov-main { min-width: 0; flex: 1; }
+.cov-t { font-weight: 600; font-size: 14.5px; }
+.cov-row.done .cov-t { color: #9fe9c9; }
+.cov-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cov-chip { font-size: 12px; padding: 5px 10px; border-radius: 9px; border: 1px solid var(--line-2); background: rgba(255,255,255,.02); color: #b9c3d4; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: border-color .2s, color .2s, background-color .2s; }
+.cov-chip:hover { border-color: rgba(0,245,160,.4); color: #fff; }
+.cov-chip.on { border-color: rgba(0,245,160,.35); color: var(--em); background: rgba(0,245,160,.06); }
+
+@media (max-width: 900px) {
+  .update-fab { left: 16px; bottom: max(16px, env(safe-area-inset-bottom)); height: 42px; }
+  #toasts { left: 16px; right: 16px; bottom: max(70px, calc(env(safe-area-inset-bottom) + 64px)); }
+  .toast { max-width: none; }
+}
+@media print { .update-fab { display: none !important; } }
+
 @media (prefers-reduced-motion: reduce) { .hero::before, .grad-text, .lu-rays { animation: none !important; } }
 @media print {
   .certificate { background: #fff !important; color: #111; border-color: #b8860b; }

@@ -276,6 +276,7 @@
     { r: "arsenal", ico: "🛡️", t: "Arsenal", pill: function () { return T.arsenal.length; } },
     { r: "amenazas", ico: "📡", t: "Radar de amenazas", pill: function () { return T.threats.length; } },
     { r: "labs", ico: "🧪", t: "Laboratorios", pill: function () { return "7"; } },
+    { r: "cobertura", ico: "🗺️", t: "Mapa del temario", pill: function () { return covStats().pct + "%"; } },
     { r: "repaso", ico: "🃏", t: "Repaso diario", pill: function () { var n = dueCards().length; return n > 99 ? "99+" : n; } },
     { r: "examen", ico: "🎓", t: "Examen y certificado", pill: function () { return S.exam && S.exam.best >= 0.8 ? "✓" : "—"; } },
     { r: "glosario", ico: "📖", t: "Glosario" },
@@ -330,6 +331,7 @@
       case "repaso": html = vReview(); break;
       case "examen": html = vExam(); break;
       case "certificado": html = vCert(); break;
+      case "cobertura": html = vCoverage(); break;
       default: html = vNotFound();
     }
     view.classList.remove("view-enter"); void view.offsetWidth;
@@ -865,6 +867,34 @@
     h += "<div class='glass card reveal row'><button class='btn btn-primary' data-act='exportFile'>⬇ Descargar backup (.json)</button><button class='btn btn-ghost' data-act='importFile'>⬆ Restaurar desde archivo</button><button class='btn btn-ghost' data-act='openBackup'>📋 Copiar / pegar JSON</button><button class='btn btn-danger' data-act='resetAll'>🗑 Reiniciar todo</button></div>";
     return h;
   }
+  /* ---------------- Mapa del temario (cobertura) ---------------- */
+  function covStats() {
+    var total = 0, covered = 0, learned = 0;
+    (T.coverage || []).forEach(function (g) { g.items.forEach(function (it) {
+      total++;
+      var ok = it[1].filter(function (id) { return LBY[id]; });
+      if (ok.length) covered++;
+      if (ok.length && ok.every(function (id) { return S.lessons[id]; })) learned++;
+    }); });
+    return { total: total, covered: covered, learned: learned, pct: total ? Math.round(covered / total * 100) : 0, lpct: total ? Math.round(learned / total * 100) : 0 };
+  }
+  function vCoverage() {
+    var st = covStats();
+    var h = "<section class='glass hero reveal' style='padding:34px'><div class='row between'><div style='max-width:680px'><span class='tag em'>Auditoría de contenido</span><h1 style='font-size:clamp(26px,3.4vw,40px)'>Mapa del <span class='grad-text'>temario completo</span></h1><p class='lead'>Cada tema de los programas de referencia (básico, avanzado y sus catálogos públicos) y cada tema imprescindible que faltaba, con las lecciones exactas donde lo aprendes aquí. Úsalo como checklist para convertirte en experto.</p></div>" +
+      "<div class='gauge'>" + gaugeSVG(st.lpct / 100, "#00f5a0") + "<div class='gv'><div><b class='grad-text'>" + st.lpct + "%</b><span>DOMINADO</span></div></div></div></div>" +
+      "<div class='row mt16'><span class='tag em'>✓ " + st.covered + " / " + st.total + " temas cubiertos (" + st.pct + "%)</span><span class='tag vi'>" + st.learned + " temas dominados</span></div></section>";
+    (T.coverage || []).forEach(function (g, gi) {
+      var done = g.items.filter(function (it) { return it[1].length && it[1].every(function (id) { return S.lessons[id]; }); }).length;
+      h += sectionHead("Bloque " + (gi + 1), esc(g.g), done + " de " + g.items.length + " temas dominados");
+      h += "<div class='glass card reveal cov-list'>" + g.items.map(function (it) {
+        var ls = it[1].filter(function (id) { return LBY[id]; }), all = ls.length && ls.every(function (id) { return S.lessons[id]; });
+        return "<div class='cov-row" + (all ? " done" : "") + "'><span class='cov-state'>" + (all ? "✓" : ls.length ? "●" : "!") + "</span><div class='cov-main'><div class='cov-t'>" + esc(it[0]) + "</div><div class='cov-links'>" +
+          ls.map(function (id) { var l = LBY[id]; return "<button class='cov-chip" + (S.lessons[id] ? " on" : "") + "' data-go='#/l/" + id + "' title='" + esc(l.title) + "'>" + l.mod.num + "." + (l.idx + 1) + " · " + esc(l.title.length > 46 ? l.title.slice(0, 46) + "…" : l.title) + "</button>"; }).join("") + "</div></div></div>";
+      }).join("") + "</div>";
+    });
+    return h;
+  }
+
   /* ---------------- Repaso espaciado (sistema Leitner) ---------------- */
   var BOX_DAYS = [0, 1, 3, 7, 16, 35];
   var CARDS = null;
@@ -1183,6 +1213,42 @@
   soundBtn();
   document.addEventListener("pointerdown", function (e) { if (e.target.closest(".btn, .chip, .tab, .quiz-opt")) sfx.tap(); }, true);
   var tmDraft = { a: {} };
+
+  /* ---------------- Actualización instantánea (botón flotante) ---------------- */
+  var APP_VERSION = "5.0";
+  var updateFab = $("#updateFab"), remoteVersion = null, updating = false;
+  function canUpdate() { return /^https?:$/.test(location.protocol); }
+  function checkUpdate(manual) {
+    if (!canUpdate()) { if (manual) toast("La actualización automática funciona en la versión publicada", "ℹ️"); return Promise.resolve(false); }
+    return fetch("version.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      remoteVersion = j && j.version;
+      var has = !!remoteVersion && remoteVersion !== APP_VERSION;
+      updateFab.classList.toggle("has-update", has);
+      $("#updateFabLabel").textContent = has ? "Nueva versión " + remoteVersion : "Actualizar";
+      updateFab.title = has ? "Hay una versión nueva (" + remoteVersion + "). Toca para instalarla." : "Buscar actualizaciones (versión " + APP_VERSION + ")";
+      return has;
+    }).catch(function () { if (manual) toast("Sin conexión: no se pudo comprobar", "📡"); return false; });
+  }
+  function applyUpdate() {
+    if (updating) return; updating = true;
+    updateFab.classList.add("busy"); $("#updateFabLabel").textContent = "Actualizando…";
+    var steps = [];
+    if (window.caches) steps.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+    if ("serviceWorker" in navigator) steps.push(navigator.serviceWorker.getRegistration().then(function (reg) { return reg ? reg.update().catch(function () { }) : null; }));
+    Promise.all(steps).then(function () { location.reload(); }, function () { location.reload(); });
+  }
+  updateFab.addEventListener("click", function () {
+    checkUpdate(true).then(function (has) {
+      if (has) applyUpdate();
+      else if (canUpdate() && remoteVersion) toast("Ya tienes la última versión (" + APP_VERSION + ")", "✅");
+    });
+  });
+  if (canUpdate()) {
+    updateFab.style.display = "";
+    setTimeout(function () { checkUpdate(false); }, 2500);
+    setInterval(function () { checkUpdate(false); }, 15 * 60 * 1000);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) checkUpdate(false); });
+  }
 
   /* ---------------- PWA: instalación y modo sin conexión ---------------- */
   var deferredInstall = null, isStandalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;

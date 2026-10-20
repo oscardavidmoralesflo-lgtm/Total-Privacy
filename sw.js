@@ -1,20 +1,21 @@
 /* BASTIÓN ACADEMY · Service worker: funciona sin conexión.
    Al publicar una actualización, sube VERSION para que los móviles descarguen la nueva. */
-var VERSION = "bastion-v4.1";
+var VERSION = "bastion-v5.0";
 var ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./assets/styles.css?v=4.1",
-  "./assets/app.js?v=4.1",
-  "./assets/data/modules-a.js?v=4.1",
-  "./assets/data/modules-b.js?v=4.1",
-  "./assets/data/modules-c.js?v=4.1",
-  "./assets/data/modules-d.js?v=4.1",
-  "./assets/data/modules-e.js?v=4.1",
-  "./assets/data/extras.js?v=4.1",
-  "./assets/data/refs.js?v=4.1",
-  "./assets/data/modules-f.js?v=4.1",
+  "./assets/styles.css?v=5.0",
+  "./assets/app.js?v=5.0",
+  "./assets/data/modules-a.js?v=5.0",
+  "./assets/data/modules-b.js?v=5.0",
+  "./assets/data/modules-c.js?v=5.0",
+  "./assets/data/modules-d.js?v=5.0",
+  "./assets/data/modules-e.js?v=5.0",
+  "./assets/data/extras.js?v=5.0",
+  "./assets/data/refs.js?v=5.0",
+  "./assets/data/modules-f.js?v=5.0",
+  "./assets/data/modules-g.js?v=5.0",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
   "./assets/icons/icon-maskable-512.png",
@@ -33,7 +34,8 @@ self.addEventListener("activate", function (e) {
 
 self.addEventListener("fetch", function (e) {
   var req = e.request;
-  if (req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
+  var u = new URL(req.url);
+  if (req.method !== "GET" || u.origin !== self.location.origin || u.pathname.slice(-12) === "version.json") return;
   if (req.mode === "navigate") {
     e.respondWith(fetch(req).catch(function () { return caches.match("./index.html"); }));
     return;
