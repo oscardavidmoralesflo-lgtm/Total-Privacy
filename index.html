@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Bastión · Academia de Soberanía Digital</title>
+  <meta name="description" content="Academia unificada de privacidad, OPSEC, ciberseguridad personal y soberanía digital en la era de la IA." />
+  <meta name="theme-color" content="#04060b" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Bastión" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="assets/styles.css?v=2.2" />
+</head>
+<body>
+  <canvas id="bgCanvas"></canvas>
+  <div class="bg-orbs"><span></span><span></span><span></span></div>
+  <div class="grid-overlay"></div>
+  <div id="readProgress"><i></i></div>
+
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-logo">B</div>
+        <div>
+          <h1>BASTIÓN</h1>
+          <p>SOBERANÍA DIGITAL · 2026</p>
+        </div>
+      </div>
+      <div class="side-scroll">
+        <div class="side-label">Centro de mando</div>
+        <nav id="mainNav"></nav>
+        <div class="side-label">Módulos del programa</div>
+        <div id="sideModules"></div>
+      </div>
+      <div class="side-footer">
+        <div class="rank-card">
+          <div class="r-top">
+            <div class="r-ico" id="rankIco">🧭</div>
+            <div>
+              <div class="r-name" id="rankName">Explorador</div>
+              <div class="r-sub" id="rankSub">0 XP · Nivel 1</div>
+            </div>
+          </div>
+          <div class="xp-bar"><i id="rankBar" style="width:0%"></i></div>
+        </div>
+      </div>
+    </aside>
+    <div class="backdrop" id="backdrop"></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button class="burger" id="burger" aria-label="Abrir menú">☰</button>
+        <button class="search-trigger" id="searchTrigger">
+          <span>🔎</span><span>Buscar lecciones, herramientas, amenazas…</span><kbd>Ctrl K</kbd>
+        </button>
+        <div class="top-stats">
+          <div class="streak" title="Días seguidos estudiando">🔥 <span id="streakVal">0</span> días</div>
+          <div class="ring" title="Progreso total del programa">
+            <svg width="46" height="46" viewBox="0 0 46 46">
+              <circle cx="23" cy="23" r="19" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="4" />
+              <circle id="ringFg" cx="23" cy="23" r="19" fill="none" stroke="url(#rg)" stroke-width="4" stroke-linecap="round" stroke-dasharray="119.38" stroke-dashoffset="119.38" style="transition: stroke-dashoffset 1.2s cubic-bezier(.16,1,.3,1)" />
+              <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00f5a0"/><stop offset="1" stop-color="#a78bfa"/></linearGradient></defs>
+            </svg>
+            <div class="ring-txt" id="ringTxt">0%</div>
+          </div>
+          <button class="icon-btn" id="installBtn" title="Instalar como app" style="display:none">📲 <span class="hide-sm">Instalar</span></button>
+          <button class="icon-btn hide-sm" id="backupBtn" title="Copia de seguridad">💾 <span>Backup</span></button>
+        </div>
+      </header>
+      <main id="view" class="view"></main>
+    </div>
+  </div>
+
+  <!-- Paleta de comandos -->
+  <div class="overlay" id="palette">
+    <div class="palette glass">
+      <input id="palInput" placeholder="Escribe para buscar: NextDNS, deepfake, Bitcoin, passkeys…" autocomplete="off" />
+      <div class="pal-list" id="palList"></div>
+    </div>
+  </div>
+
+  <!-- Modal genérico -->
+  <div class="overlay" id="modal"><div class="modal glass" id="modalBody"></div></div>
+
+  <div id="toasts"></div>
+  <canvas id="confetti"></canvas>
+
+  <!-- Contenido del curso (datos) -->
+  <script src="assets/data/modules-a.js?v=2.2"></script>
+  <script src="assets/data/modules-b.js?v=2.2"></script>
+  <script src="assets/data/modules-c.js?v=2.2"></script>
+  <script src="assets/data/modules-d.js?v=2.2"></script>
+  <script src="assets/data/extras.js?v=2.2"></script>
+  <script src="assets/data/modules-e.js?v=2.2"></script>
+  <!-- Motor de la plataforma -->
+  <script src="assets/app.js?v=2.2"></script>
+</body>
+</html>
