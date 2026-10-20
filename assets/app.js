@@ -104,23 +104,27 @@
     setTimeout(function () { el.classList.add("out"); setTimeout(function () { el.remove(); }, 400); }, 3200);
   }
   var cv = $("#confetti"), cx = cv.getContext("2d"), parts = [], confRunning = false;
+  /* Celebración sobria: un velo de partículas doradas y esmeralda que cae despacio.
+     Solo para grandes logros (módulo completado, nuevo rango, examen aprobado). */
   function confetti(n) {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || (n || 0) < 200) return;
     cv.width = innerWidth; cv.height = innerHeight;
-    var cols = ["#00f5a0", "#22d3ee", "#a78bfa", "#fbbf24", "#fb7185", "#ffffff"];
-    for (var i = 0; i < (n || 160); i++) {
-      parts.push({ x: innerWidth / 2 + (Math.random() - .5) * 200, y: innerHeight * .35, vx: (Math.random() - .5) * 16, vy: Math.random() * -14 - 4, s: Math.random() * 7 + 4, c: pick(cols), r: Math.random() * 6, vr: (Math.random() - .5) * .3, life: 0 });
+    var cols = ["251,191,36", "0,245,160", "255,255,255"];
+    for (var i = 0; i < 70; i++) {
+      parts.push({ x: Math.random() * innerWidth, y: -10 - Math.random() * innerHeight * .4, vy: .6 + Math.random() * 1.1, sway: Math.random() * 6.28, s: Math.random() * 1.8 + .8, c: pick(cols), life: 0, max: 220 + Math.random() * 80 });
     }
     if (!confRunning) { confRunning = true; requestAnimationFrame(confTick); }
   }
   function confTick() {
     cx.clearRect(0, 0, cv.width, cv.height);
-    parts = parts.filter(function (p) { return p.life < 160 && p.y < cv.height + 40; });
+    parts = parts.filter(function (p) { return p.life < p.max && p.y < cv.height + 20; });
     parts.forEach(function (p) {
-      p.life++; p.vy += .38; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
-      cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r); cx.globalAlpha = Math.max(0, 1 - p.life / 160);
-      cx.fillStyle = p.c; cx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); cx.restore();
+      p.life++; p.sway += .02; p.y += p.vy; p.x += Math.sin(p.sway) * .35;
+      var a = Math.min(1, p.life / 30) * Math.max(0, 1 - p.life / p.max);
+      cx.beginPath(); cx.fillStyle = "rgba(" + p.c + "," + (a * .9).toFixed(3) + ")"; cx.shadowColor = "rgba(" + p.c + ",.8)"; cx.shadowBlur = 8;
+      cx.arc(p.x, p.y, p.s, 0, 6.283); cx.fill();
     });
+    cx.shadowBlur = 0;
     if (parts.length) requestAnimationFrame(confTick); else { confRunning = false; cx.clearRect(0, 0, cv.width, cv.height); }
   }
 
@@ -176,7 +180,7 @@
     function ac() {
       if (!ctx) {
         var A = window.AudioContext || window.webkitAudioContext; if (!A) return null;
-        ctx = new A(); master = ctx.createGain(); master.gain.value = 0.22; master.connect(ctx.destination);
+        ctx = new A(); master = ctx.createGain(); master.gain.value = 0.18; master.connect(ctx.destination);
       }
       if (ctx.state === "suspended") ctx.resume();
       return ctx;
@@ -199,8 +203,8 @@
     }
     function guard(fn) { return function () { if (!on()) return; try { fn(); } catch (e) { /* audio no disponible */ } }; }
     return {
-      tap: guard(function () { tone(1250, 0, 0.045, "triangle", 0.18); }),
-      nav: guard(function () { noise(0, 0.16, 0.12, 500, 3000); }),
+      tap: guard(function () { tone(1400, 0, 0.035, "sine", 0.07); }),
+      nav: guard(function () { noise(0, 0.14, 0.045, 700, 2600); }),
       check: guard(function () { tone(660, 0, 0.09, "triangle", 0.35); tone(990, 0.07, 0.14, "triangle", 0.35); }),
       uncheck: guard(function () { tone(700, 0, 0.08, "triangle", 0.25); tone(470, 0.06, 0.12, "triangle", 0.25); }),
       success: guard(function () { [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { tone(f, i * 0.085, 0.32, "triangle", 0.42); tone(f * 2, i * 0.085, 0.2, "sine", 0.08); }); }),
@@ -242,8 +246,8 @@
     var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     function size() {
       W = c.width = innerWidth; H = c.height = innerHeight;
-      var n = Math.min(90, Math.floor(W * H / 18000)); pts = [];
-      for (var i = 0; i < n; i++) pts.push({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - .5) * .35, vy: (Math.random() - .5) * .35 });
+      var n = Math.min(55, Math.floor(W * H / 26000)); pts = [];
+      for (var i = 0; i < n; i++) pts.push({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - .5) * .12, vy: (Math.random() - .5) * .12 });
     }
     function draw() {
       g.clearRect(0, 0, W, H);
@@ -255,8 +259,6 @@
           var q = pts[j], dx = p.x - q.x, dy = p.y - q.y, d = dx * dx + dy * dy;
           if (d < 17000) { g.strokeStyle = "rgba(34,211,238," + (0.14 * (1 - d / 17000)) + ")"; g.lineWidth = 1; g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y); g.stroke(); }
         }
-        var mx = p.x - mouse.x, my = p.y - mouse.y, md = mx * mx + my * my;
-        if (md < 30000) { g.strokeStyle = "rgba(167,139,250," + (0.3 * (1 - md / 30000)) + ")"; g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(mouse.x, mouse.y); g.stroke(); }
       }
       if (!reduced && !document.hidden) requestAnimationFrame(draw);
     }
@@ -359,6 +361,8 @@
     tiltInit();
   }
   function tiltInit() {
+    return; // Diseño sobrio: sin inclinación 3D
+    /* eslint-disable no-unreachable */
     if (!matchMedia("(hover: hover) and (pointer: fine)").matches || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     $$(".mod-card, .tool-card, .level-node, .stat, .badge, .news-card").forEach(function (el) {
       if (el._tilt) return; el._tilt = 1; el.classList.add("tilt");
@@ -456,7 +460,7 @@
     var phases = [
       ["01 · ENTIENDE", "#00f5a0", "Mentalidad y modelo de amenazas", "Identificadores, LINDDUN y compartimentación en 4 capas: Bóveda, Avatar, Laboratorio IA y Fantasma.", "m01"],
       ["02 · BLINDA", "#22d3ee", "Navegador, red, cuentas y dispositivos", "Brave endurecido, DNS cifrado, VPN post-cuántica, passkeys, cifrado de disco y móvil blindado.", "m02"],
-      ["03 · LIMPIA", "#a78bfa", "Identidad invisible y reset digital", "Alias infinitos, mensajería sin metadatos, antifraude con IA, data brokers y derechos legales.", "m06"],
+      ["03 · LIMPIA", "#a78bfa", "Identidad invisible y limpieza digital", "Alias infinitos, mensajería sin metadatos, antifraude con IA, data brokers y derechos legales.", "m06"],
       ["04 · DOMINA", "#fbbf24", "OSINT, IA soberana y patrimonio", "IA local, seguridad de agentes, biometría, Bitcoin en autocustodia, self-hosting y herencia.", "m09"]
     ];
     h += "<div class='grid g4'>" + phases.map(function (f) {
@@ -1046,12 +1050,6 @@
 
   /* ---------------- Acciones (delegación) ---------------- */
   document.addEventListener("click", function (e) {
-    var b = e.target.closest(".btn");
-    if (b && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      var r = b.getBoundingClientRect(), s = Math.max(r.width, r.height), rp = document.createElement("span");
-      rp.className = "ripple"; rp.style.width = rp.style.height = s + "px"; rp.style.left = (e.clientX - r.left - s / 2) + "px"; rp.style.top = (e.clientY - r.top - s / 2) + "px";
-      b.appendChild(rp); setTimeout(function () { rp.remove(); }, 650);
-    }
     var act = e.target.closest("[data-act]"), go = e.target.closest("[data-go]");
     if (go && (!act || act.contains(go))) {
       e.preventDefault(); e.stopPropagation();

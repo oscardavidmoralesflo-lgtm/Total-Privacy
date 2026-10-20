@@ -3,7 +3,7 @@ window.BASTION = window.BASTION || { modules: [] };
 
 BASTION.modules.push({
   id: "m08", num: "08", icon: "🧹", color: "ro", level: 3,
-  title: "Reset Digital: Borrado de Huella, Data Brokers y Derechos Legales",
+  title: "Limpieza Digital: Borrado de Huella, Data Brokers y Derechos Legales",
   subtitle: "Inventario de cuentas, data poisoning, brokers, Google 'Resultados sobre ti', GDPR, Habeas Data y LatAm",
   summary: "Blindar el futuro no basta si tu pasado sigue a la venta. Inventarías todas tus cuentas, sobrescribes datos antes de borrar, sacas tu ficha de los data brokers y usas la ley como arma.",
   outcomes: ["Inventariar 15 años de cuentas", "Borrar correctamente", "Salir de data brokers", "Ejercer tus derechos legales"],
