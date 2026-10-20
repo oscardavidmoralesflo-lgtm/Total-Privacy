@@ -15,7 +15,7 @@
   /* ---------------- Estado persistente ---------------- */
   var KEY = "bastion.academy.v1", OLD_KEY = "tokin.academy.v1";
   try { if (!localStorage.getItem(KEY) && localStorage.getItem(OLD_KEY)) { localStorage.setItem(KEY, localStorage.getItem(OLD_KEY)); localStorage.removeItem(OLD_KEY); } } catch (e) { /* sin almacenamiento */ }
-  function blank() { return { lessons: {}, steps: {}, quizzes: {}, sprint: {}, notes: {}, labs: { comp: {}, audit: {}, safe: null, tm: null }, badges: {}, days: [], modDone: {}, last: null }; }
+  function blank() { return { lessons: {}, steps: {}, quizzes: {}, sprint: {}, notes: {}, labs: { comp: {}, audit: {}, safe: null, tm: null }, badges: {}, days: [], modDone: {}, last: null, prefs: { sound: true, name: "", onboarded: false }, cards: {}, exam: null, daily: null, rankIdx: 0 }; }
   var S = load();
   function load() {
     try {
@@ -47,7 +47,14 @@
   function sprintDone() { return Object.keys(S.sprint).filter(function (k) { return S.sprint[k]; }).length; }
   function modProgress(m) { var d = m.lessons.filter(function (l) { return S.lessons[l.id]; }).length; return { d: d, t: m.lessons.length, p: m.lessons.length ? d / m.lessons.length : 0 }; }
   function modsDone() { return MODS.filter(function (m) { return modProgress(m).p === 1; }).length; }
-  function xp() { return lessonsDone() * 100 + stepsDone() * 5 + quizPassed() * 150 + sprintDone() * 30 + Object.keys(S.badges).length * 50; }
+  function cardsMastered() { return Object.keys(S.cards).filter(function (k) { return S.cards[k].b >= 3; }).length; }
+  function xp() { return lessonsDone() * 100 + stepsDone() * 5 + quizPassed() * 150 + sprintDone() * 30 + Object.keys(S.badges).length * 50 + cardsMastered() * 10 + (S.exam && S.exam.best >= 0.8 ? 500 : 0); }
+  function dailyXp() {
+    var t = today();
+    if (!S.daily || S.daily.d !== t) { S.daily = { d: t, start: xp() }; save(); }
+    return Math.max(0, xp() - S.daily.start);
+  }
+  var DAILY_GOAL = 150;
   function rank() {
     var x = xp(), r = T.ranks[0], next = null;
     for (var i = 0; i < T.ranks.length; i++) { if (x >= T.ranks[i].xp) { r = T.ranks[i]; next = T.ranks[i + 1] || null; } }
@@ -146,13 +153,88 @@
     if (got.length) {
       got.forEach(function (id, i) {
         var b = T.badges.filter(function (x) { return x.id === id; })[0];
-        setTimeout(function () { toast("Insignia desbloqueada: <b>" + b.n + "</b>", b.ico); }, 400 + i * 700);
+        setTimeout(function () { toast("Insignia desbloqueada: <b>" + b.n + "</b>", b.ico); sfx.badge(); }, 400 + i * 700);
       });
       confetti(90);
     }
     save();
   }
-  function commit() { activity(); checkBadges(); save(); chrome(); }
+  function commit() {
+    var before = dailyXp();
+    activity(); checkBadges();
+    var ri = rank().lvl;
+    if (ri > (S.rankIdx || 1)) { S.rankIdx = ri; setTimeout(levelUp, 700); } else if (!S.rankIdx) S.rankIdx = ri;
+    var after = dailyXp();
+    if (before < DAILY_GOAL && after >= DAILY_GOAL) setTimeout(function () { toast("¡Meta diaria cumplida! " + DAILY_GOAL + " XP hoy", "🎯"); sfx.success(); confetti(120); }, 900);
+    save(); chrome();
+  }
+
+  /* ---------------- Motor de sonido (Web Audio, sintetizado: sin archivos) ---------------- */
+  var sfx = (function () {
+    var ctx = null, master = null;
+    function on() { return S.prefs && S.prefs.sound !== false; }
+    function ac() {
+      if (!ctx) {
+        var A = window.AudioContext || window.webkitAudioContext; if (!A) return null;
+        ctx = new A(); master = ctx.createGain(); master.gain.value = 0.22; master.connect(ctx.destination);
+      }
+      if (ctx.state === "suspended") ctx.resume();
+      return ctx;
+    }
+    function tone(freq, start, dur, type, vol, slideTo) {
+      var c = ac(); if (!c) return;
+      var t = c.currentTime + (start || 0), o = c.createOscillator(), g = c.createGain();
+      o.type = type || "sine"; o.frequency.setValueAtTime(freq, t);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.5, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
+    }
+    function noise(start, dur, vol, from, to) {
+      var c = ac(); if (!c) return;
+      var len = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      var s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(), t = c.currentTime + (start || 0);
+      f.type = "bandpass"; f.Q.value = 1.2; f.frequency.setValueAtTime(from || 600, t); f.frequency.exponentialRampToValueAtTime(to || 2400, t + dur);
+      g.gain.value = vol || 0.25; s.buffer = buf; s.connect(f); f.connect(g); g.connect(master); s.start(t);
+    }
+    function guard(fn) { return function () { if (!on()) return; try { fn(); } catch (e) { /* audio no disponible */ } }; }
+    return {
+      tap: guard(function () { tone(1250, 0, 0.045, "triangle", 0.18); }),
+      nav: guard(function () { noise(0, 0.16, 0.12, 500, 3000); }),
+      check: guard(function () { tone(660, 0, 0.09, "triangle", 0.35); tone(990, 0.07, 0.14, "triangle", 0.35); }),
+      uncheck: guard(function () { tone(700, 0, 0.08, "triangle", 0.25); tone(470, 0.06, 0.12, "triangle", 0.25); }),
+      success: guard(function () { [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { tone(f, i * 0.085, 0.32, "triangle", 0.42); tone(f * 2, i * 0.085, 0.2, "sine", 0.08); }); }),
+      wrong: guard(function () { tone(220, 0, 0.18, "sawtooth", 0.14, 160); tone(185, 0.12, 0.22, "sawtooth", 0.12, 130); }),
+      correct: guard(function () { tone(880, 0, 0.1, "sine", 0.4); tone(1318.5, 0.08, 0.22, "sine", 0.4); }),
+      flip: guard(function () { noise(0, 0.12, 0.18, 1800, 600); }),
+      badge: guard(function () { [784, 988, 1175, 1568].forEach(function (f, i) { tone(f, i * 0.07, 0.4, "sine", 0.35); }); noise(0.25, 0.5, 0.06, 4000, 9000); }),
+      levelup: guard(function () {
+        tone(196, 0, 0.9, "sawtooth", 0.08, 392); noise(0, 0.6, 0.08, 300, 5000);
+        [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568].forEach(function (f, i) { tone(f, 0.35 + i * 0.09, 0.6, "triangle", 0.38); });
+        [1046.5, 1318.5, 1568, 2093].forEach(function (f) { tone(f, 0.95, 1.1, "sine", 0.12); });
+      }),
+      open: guard(function () { tone(520, 0, 0.12, "sine", 0.2, 900); }),
+      set: function (v) { S.prefs.sound = v; save(); }
+    };
+  })();
+
+  /* ---------------- Recompensas visuales ---------------- */
+  function xpFloat(e, txt, color) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    var el = document.createElement("div"); el.className = "xp-float"; el.textContent = txt;
+    if (color) el.style.color = color;
+    var x = e && e.clientX ? e.clientX : innerWidth / 2, y = e && e.clientY ? e.clientY : innerHeight / 2;
+    el.style.left = x + "px"; el.style.top = y + "px";
+    document.body.appendChild(el); setTimeout(function () { el.remove(); }, 1300);
+  }
+  function levelUp() {
+    var rk = rank();
+    var ov = document.createElement("div"); ov.className = "levelup";
+    ov.innerHTML = "<div class='lu-rays'></div><div class='lu-card'><div class='lu-k'>NUEVO RANGO DESBLOQUEADO</div><div class='lu-ico'>" + rk.r.ico + "</div><div class='lu-name'>" + rk.r.name + "</div><div class='lu-d'>" + rk.r.d + "</div><div class='lu-xp'>" + rk.x + " XP</div><button class='btn btn-primary mt16' data-act='closeLevel'>Continuar →</button></div>";
+    document.body.appendChild(ov);
+    sfx.levelup(); confetti(260);
+    setTimeout(function () { ov.classList.add("show"); }, 20);
+  }
 
   /* ---------------- Fondo animado ---------------- */
   (function bg() {
@@ -192,6 +274,8 @@
     { r: "arsenal", ico: "🛡️", t: "Arsenal", pill: function () { return T.arsenal.length; } },
     { r: "amenazas", ico: "📡", t: "Radar de amenazas", pill: function () { return T.threats.length; } },
     { r: "labs", ico: "🧪", t: "Laboratorios", pill: function () { return "7"; } },
+    { r: "repaso", ico: "🃏", t: "Repaso diario", pill: function () { var n = dueCards().length; return n > 99 ? "99+" : n; } },
+    { r: "examen", ico: "🎓", t: "Examen y certificado", pill: function () { return S.exam && S.exam.best >= 0.8 ? "✓" : "—"; } },
     { r: "glosario", ico: "📖", t: "Glosario" },
     { r: "progreso", ico: "🏆", t: "Mi progreso", pill: function () { return Object.keys(S.badges).length + "/" + T.badges.length; } }
   ];
@@ -226,7 +310,7 @@
     var params = {}; q.split("&").forEach(function (kv) { if (!kv) return; var p = kv.split("="); params[decodeURIComponent(p[0])] = decodeURIComponent(p[1] || ""); });
     return { parts: h.split("/").filter(Boolean), q: params };
   }
-  var view = $("#view");
+  var view = $("#view"), rendered = false;
   function render() {
     var r = route(), p = r.parts, html;
     closeSidebar();
@@ -241,12 +325,17 @@
       case "labs": html = vLabs(p[1] || "pass"); break;
       case "glosario": html = vGlossary(); break;
       case "progreso": html = vProgress(); break;
+      case "repaso": html = vReview(); break;
+      case "examen": html = vExam(); break;
+      case "certificado": html = vCert(); break;
       default: html = vNotFound();
     }
     view.classList.remove("view-enter"); void view.offsetWidth;
     view.innerHTML = html + "<div class='footer-note'>BASTIÓN ACADEMY · 100% local · tus datos nunca salen de este navegador</div>";
     view.classList.add("view-enter");
     window.scrollTo(0, 0);
+    if (rendered) sfx.nav();
+    rendered = true;
     chrome();
     afterRender(p);
   }
@@ -265,6 +354,20 @@
     if (p[0] === "labs") labHooks(p[1] || "pass");
     if (p[0] === "arsenal") arsenalHooks();
     if (p[0] === "glosario") glossaryHooks();
+    if (p[0] === "repaso") drawCard();
+    if (p[0] === "examen") drawExam();
+    tiltInit();
+  }
+  function tiltInit() {
+    if (!matchMedia("(hover: hover) and (pointer: fine)").matches || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    $$(".mod-card, .tool-card, .level-node, .stat, .badge, .news-card").forEach(function (el) {
+      if (el._tilt) return; el._tilt = 1; el.classList.add("tilt");
+      el.addEventListener("mousemove", function (e) {
+        var r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+        el.style.transform = "perspective(900px) rotateX(" + (-y * 7).toFixed(2) + "deg) rotateY(" + (x * 9).toFixed(2) + "deg) translateY(-4px)";
+      });
+      el.addEventListener("mouseleave", function () { el.style.transform = ""; });
+    });
   }
   function countUp(el) {
     var to = parseFloat(el.dataset.count), suf = el.dataset.suf || "", t0 = null, dur = 1100;
@@ -326,6 +429,17 @@
       "<button class='btn btn-gold' data-go='#/labs/audit'>📊 Auditar mi exposición</button>" +
       "</div></div><div class='emblem'><div class='orbit'></div><div class='orbit o2'></div><div class='piece'><span>B</span></div></div></div></section>";
 
+    var dx = dailyXp(), dp = Math.min(1, dx / DAILY_GOAL), due = dueCards().length;
+    var nextDay = T.sprint.filter(function (d) { return !S.sprint[d.d]; })[0];
+    var hr = new Date().getHours(), greet = hr < 12 ? "Buenos días" : hr < 19 ? "Buenas tardes" : "Buenas noches";
+    h += "<section class='glass mission reveal mt24'><div class='mission-head'><div><div class='eyebrow'>Misión de hoy</div><h2>" + greet + (S.prefs.name ? ", " + esc(S.prefs.name) : "") + " 👋</h2><p class='muted'>" + (dp >= 1 ? "Meta diaria cumplida. Cada día suma: vuelve mañana para mantener la racha." : "Completa tu meta de " + DAILY_GOAL + " XP para mantener la racha de " + streak() + " día" + (streak() === 1 ? "" : "s") + ".") + "</p></div>" +
+      "<div class='goal-ring'>" + gaugeSVG(dp, dp >= 1 ? "#00f5a0" : "#a78bfa") + "<div class='gv'><div><b>" + dx + "</b><span>/ " + DAILY_GOAL + " XP</span></div></div></div></div>" +
+      "<div class='grid g3 mt16'>" +
+      (nl ? missionItem("📘", "Siguiente lección", nl.title, "Módulo " + nl.mod.num + " · " + nl.min + " min · +100 XP", "#/l/" + nl.id) : missionItem("🏆", "Programa completo", "Has terminado todas las lecciones", "Prueba el examen final", "#/examen")) +
+      missionItem("🃏", "Repaso espaciado", due ? due + " tarjetas pendientes" : "Todo repasado por hoy", "Fija lo aprendido · +10 XP por tarjeta dominada", "#/repaso") +
+      (nextDay ? missionItem("⚡", "Reto · Día " + nextDay.d, nextDay.t, nextDay.desc, "#/l/" + nextDay.l) : missionItem("🎓", "Certificación", "Examen final", "30 preguntas · aprobado con 80%", "#/examen")) +
+      "</div></section>";
+
     h += "<div class='grid g4 mt24'>" +
       statCard("Lecciones", lessonsDone(), "/" + ALL.length, lessonsDone() / ALL.length, "#00f5a0", Math.round(totalMin / 60) + " h de contenido") +
       statCard("Progreso total", totalPct(), "%", totalPct() / 100, "#22d3ee", modsDone() + " módulos completos") +
@@ -358,6 +472,9 @@
     h += sectionHead("Mapa curricular", "Los " + MODS.length + " módulos del programa", "Haz clic en cualquier módulo para estudiarlo.", "<button class='btn btn-ghost btn-sm' data-go='#/ruta'>Ver por niveles →</button>");
     h += "<div class='grid g3'>" + MODS.map(modCard).join("") + "</div>";
     return h;
+  }
+  function missionItem(ico, k, t, s, go) {
+    return "<div class='mission-item' data-go='" + go + "'><div class='mi-ico'>" + ico + "</div><div style='min-width:0'><div class='mi-k'>" + k + "</div><div class='mi-t'>" + esc(t) + "</div><div class='mi-s'>" + esc(s) + "</div></div><span class='arrow'>→</span></div>";
   }
   function statCard(k, v, suf, p, color, s) {
     return "<div class='glass stat reveal'><div class='k'>" + k + "</div><div class='v' style='color:" + color + "'><span data-count='" + v + "'>0</span><span style='font-size:16px;color:var(--muted)'>" + suf + "</span></div><div class='s'>" + s + "</div><div class='bar'><i data-w='" + Math.round(p * 100) + "%' style='width:0;background:" + color + ";box-shadow:0 0 10px " + color + "'></i></div></div>";
@@ -394,6 +511,11 @@
       var done = S.lessons[l.id], st = l.steps.filter(function (_, si) { return S.steps[l.id + ":" + si]; }).length;
       return "<div class='lesson-row reveal" + (done ? " done" : "") + "' data-go='#/l/" + l.id + "'><div class='lnum'>" + (done ? "✓" : m.num + "." + (k + 1)) + "</div><div><h4>" + esc(l.title) + "</h4><div class='lmeta'>⏱ " + l.min + " min · " + st + "/" + l.steps.length + " pasos" + (l.tools && l.tools.length ? " · " + l.tools.slice(0, 3).map(esc).join(", ") : "") + "</div></div><span class='arrow'>→</span></div>";
     }).join("") + "</div>";
+    var refs = (T.refs && T.refs[m.id]) || [];
+    if (refs.length) {
+      h += sectionHead("Para profundizar", "Fuentes oficiales y de referencia", "Documentación primaria para ir más allá de la lección. Se abren en una pestaña nueva.");
+      h += "<div class='grid g2'>" + refs.map(function (r) { return "<a class='glass ref-card reveal' href='" + esc(r[1]) + "' target='_blank' rel='noopener noreferrer'><span class='ref-ico'>🔗</span><span style='min-width:0'><b>" + esc(r[0]) + "</b><small>" + esc(r[1].replace(/^https?:\/\//, "").replace(/\/$/, "")) + "</small></span><span class='arrow'>↗</span></a>"; }).join("") + "</div>";
+    }
     h += "<div id='quizAnchor'></div>" + sectionHead("Evaluación", "Examen del módulo " + m.num, "Aprueba con 70% o más para ganar 150 XP. Puedes repetirlo.");
     h += "<div class='glass card reveal' id='quizBox'>" + quizHTML(m) + "</div>";
     h += "<div class='lesson-nav'>" + (prev ? "<button class='btn btn-ghost' data-go='#/m/" + prev.id + "'>← " + prev.num + " · " + esc(shortTitle(prev.title)) + "</button>" : "<span></span>") + (next ? "<button class='btn btn-ghost' data-go='#/m/" + next.id + "'>" + next.num + " · " + esc(shortTitle(next.title)) + " →</button>" : "") + "</div>";
@@ -739,6 +861,103 @@
     h += "<div class='glass card reveal row'><button class='btn btn-primary' data-act='exportFile'>⬇ Descargar backup (.json)</button><button class='btn btn-ghost' data-act='importFile'>⬆ Restaurar desde archivo</button><button class='btn btn-ghost' data-act='openBackup'>📋 Copiar / pegar JSON</button><button class='btn btn-danger' data-act='resetAll'>🗑 Reiniciar todo</button></div>";
     return h;
   }
+  /* ---------------- Repaso espaciado (sistema Leitner) ---------------- */
+  var BOX_DAYS = [0, 1, 3, 7, 16, 35];
+  var CARDS = null;
+  function allCards() {
+    if (CARDS) return CARDS;
+    CARDS = [];
+    T.glossary.forEach(function (g) { CARDS.push({ id: "g:" + g[0], k: "Glosario", f: "¿Qué es <b>" + esc(g[0]) + "</b>?", b: esc(g[1]) }); });
+    MODS.forEach(function (m) { m.quiz.forEach(function (q, i) { CARDS.push({ id: "q:" + m.id + ":" + i, k: "Módulo " + m.num, f: esc(q.q), b: "<b>" + esc(q.o[q.a]) + "</b><br><span class='muted'>" + esc(q.e) + "</span>" }); }); });
+    return CARDS;
+  }
+  function daysFromToday(n) { var d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function dueCards() {
+    var t = today();
+    return allCards().filter(function (c) { var s = S.cards[c.id]; return !s || s.due <= t; });
+  }
+  var session = null;
+  function vReview() {
+    var due = dueCards(), all = allCards();
+    var boxes = [0, 0, 0, 0, 0, 0]; all.forEach(function (c) { var s = S.cards[c.id]; boxes[s ? Math.min(5, s.b) : 0]++; });
+    if (!session || session.done) {
+      var pool = due.slice(); for (var i = pool.length - 1; i > 0; i--) { var j = rand(i + 1), t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+      session = { q: pool.slice(0, 20), i: 0, ok: 0, done: false, flipped: false };
+    }
+    var h = "<div class='reveal'><div class='eyebrow'>Repaso espaciado</div><h1 style='font-size:clamp(26px,3.4vw,40px);margin:8px 0;letter-spacing:-1px'>Lo que repasas, <span class='grad-text'>no se olvida</span></h1><p class='muted'>Sistema Leitner: cada tarjeta que aciertas vuelve más tarde (1, 3, 7, 16 y 35 días). Las que fallas vuelven mañana. " + all.length + " tarjetas del glosario y de los exámenes.</p></div>";
+    h += "<div class='box-row mt16 reveal'>" + boxes.map(function (n, i) { return "<div class='box-pill'><span>" + (i === 0 ? "Nuevas" : "Caja " + i) + "</span><b>" + n + "</b></div>"; }).join("") + "</div>";
+    h += "<div id='cardStage' class='mt24'></div>";
+    return h;
+  }
+  function drawCard() {
+    var st = $("#cardStage"); if (!st) return;
+    if (!session.q.length) { st.innerHTML = "<div class='glass card empty'><div style='font-size:48px'>🌙</div><h2>Todo repasado por hoy</h2><p class='muted'>Vuelve mañana: tus tarjetas te estarán esperando en el momento justo para no olvidarlas.</p><button class='btn btn-primary mt16' data-go='#/'>Volver al inicio</button></div>"; return; }
+    if (session.i >= session.q.length) {
+      session.done = true;
+      st.innerHTML = "<div class='glass card empty'><div style='font-size:52px'>🧠</div><h2>Sesión completada</h2><p class='muted'>Acertaste " + session.ok + " de " + session.q.length + ". " + (dueCards().length ? "Quedan " + dueCards().length + " tarjetas pendientes." : "No quedan tarjetas pendientes hoy.") + "</p><div class='row mt16' style='justify-content:center'>" + (dueCards().length ? "<button class='btn btn-primary' data-act='newSession'>Otra ronda</button>" : "") + "<button class='btn btn-ghost' data-go='#/'>Inicio</button></div></div>";
+      sfx.success(); confetti(100); return;
+    }
+    var c = session.q[session.i];
+    st.innerHTML = "<div class='row between mono muted' style='font-size:12px;max-width:640px;margin:0 auto 10px'><span>" + c.k + "</span><span>" + (session.i + 1) + " / " + session.q.length + "</span></div>" +
+      "<div class='progress' style='max-width:640px;margin:0 auto 18px'><i style='width:" + Math.round(session.i / session.q.length * 100) + "%'></i></div>" +
+      "<div class='flashcard" + (session.flipped ? " flipped" : "") + "' data-act='flip'><div class='fc-inner'><div class='fc-face fc-front'><div class='fc-tag'>PREGUNTA</div><div class='fc-text'>" + c.f + "</div><div class='fc-hint'>Toca para ver la respuesta</div></div><div class='fc-face fc-back'><div class='fc-tag'>RESPUESTA</div><div class='fc-text' style='font-size:17px'>" + c.b + "</div></div></div></div>" +
+      "<div class='row mt24 fc-actions" + (session.flipped ? " show" : "") + "' style='justify-content:center'><button class='btn btn-danger' data-act='cardAns' data-v='0'>😅 Repasar mañana</button><button class='btn btn-primary' data-act='cardAns' data-v='1'>✅ Lo sabía</button></div>";
+  }
+
+  /* ---------------- Examen final y certificado ---------------- */
+  var exam = null;
+  function vExam() {
+    var best = S.exam ? Math.round(S.exam.best * 100) : null;
+    var pool = 0; MODS.forEach(function (m) { pool += m.quiz.length; });
+    var h = "<section class='glass hero reveal' style='padding:34px'><div class='row between'><div style='max-width:660px'><span class='tag vi'>Certificación final</span><h1 style='font-size:clamp(26px,3.4vw,42px)'>Examen de <span class='grad-text'>Soberanía Digital</span></h1><p class='lead'>30 preguntas al azar de un banco de " + pool + ", de todos los módulos. Aprueba con un 80% para obtener tu certificado y +500 XP. Puedes repetirlo las veces que quieras.</p></div><div class='cert-seal'><span>🎓</span></div></div>" +
+      (best !== null ? "<div class='row mt16'><span class='tag " + (best >= 80 ? "em" : "go") + "'>Mejor nota: " + best + "%</span>" + (best >= 80 ? "<button class='btn btn-gold btn-sm' data-go='#/certificado'>📜 Ver mi certificado</button>" : "") + "</div>" : "") + "</section>";
+    h += "<div id='examStage' class='mt24'></div>";
+    return h;
+  }
+  function startExam() {
+    var bank = []; MODS.forEach(function (m) { m.quiz.forEach(function (q) { bank.push({ q: q, m: m }); }); });
+    for (var i = bank.length - 1; i > 0; i--) { var j = rand(i + 1), t = bank[i]; bank[i] = bank[j]; bank[j] = t; }
+    exam = { q: bank.slice(0, Math.min(30, bank.length)), i: 0, ok: 0, answered: false, choice: null };
+    drawExam();
+  }
+  function drawExam() {
+    var st = $("#examStage"); if (!st) return;
+    if (!exam) { st.innerHTML = "<div class='glass card' style='text-align:center'><div style='font-size:40px'>⏱️</div><h3>¿Listo?</h3><p class='muted'>Sin límite de tiempo. Lee con calma: cada respuesta incluye la explicación.</p><button class='btn btn-primary mt8' data-act='examStart'>Comenzar examen</button></div>"; return; }
+    if (exam.i >= exam.q.length) {
+      var sc = exam.ok / exam.q.length, pass = sc >= 0.8;
+      var prev = S.exam ? S.exam.best : 0;
+      S.exam = { best: Math.max(prev, sc), last: sc, at: Date.now(), code: (S.exam && S.exam.code) || certCode() };
+      if (pass) S.exam.passedAt = S.exam.passedAt || Date.now();
+      commit();
+      st.innerHTML = "<div class='glass card' style='text-align:center'><div style='font-size:56px'>" + (pass ? "🏆" : "📘") + "</div><h2>" + exam.ok + " / " + exam.q.length + " · " + Math.round(sc * 100) + "%</h2><p class='muted'>" + (pass ? "¡Aprobado! Ya tienes tu certificado." : "Necesitas un 80%. Repasa los módulos con más fallos y vuelve a intentarlo.") + "</p><div class='row mt16' style='justify-content:center'>" + (pass ? "<button class='btn btn-gold' data-go='#/certificado'>📜 Ver certificado</button>" : "") + "<button class='btn btn-ghost' data-act='examStart'>↻ Repetir</button><button class='btn btn-ghost' data-go='#/repaso'>🃏 Repasar</button></div></div>";
+      if (pass) { sfx.levelup(); confetti(300); } else sfx.wrong();
+      exam = null; return;
+    }
+    var it = exam.q[exam.i], q = it.q;
+    st.innerHTML = "<div class='glass card exam-card'><div class='row between mono muted' style='font-size:12px'><span>Pregunta " + (exam.i + 1) + " de " + exam.q.length + " · " + it.m.icon + " Módulo " + it.m.num + "</span><span>✓ " + exam.ok + "</span></div><div class='progress mt8'><i style='width:" + Math.round(exam.i / exam.q.length * 100) + "%'></i></div>" +
+      "<h3 style='font-size:19px;margin:18px 0 6px'>" + esc(q.q) + "</h3>" +
+      q.o.map(function (o, oi) {
+        var cls = !exam.answered ? "" : oi === q.a ? " ok" : oi === exam.choice ? " bad" : "";
+        return "<button class='quiz-opt" + cls + "' data-act='examAns' data-o='" + oi + "'" + (exam.answered ? " disabled" : "") + ">" + String.fromCharCode(65 + oi) + ") " + esc(o) + "</button>";
+      }).join("") +
+      (exam.answered ? "<div class='callout " + (exam.choice === q.a ? "tip" : "danger") + " mt16'><span class='ci'>" + (exam.choice === q.a ? "✅" : "❌") + "</span><div>" + esc(q.e) + "</div></div><div class='row mt16' style='justify-content:flex-end'><button class='btn btn-primary' data-act='examNext'>" + (exam.i + 1 < exam.q.length ? "Siguiente →" : "Ver resultado") + "</button></div>" : "") + "</div>";
+  }
+  function certCode() { var b = new Uint8Array(6); crypto.getRandomValues(b); return Array.prototype.map.call(b, function (x) { return ("0" + x.toString(16)).slice(-2); }).join("").toUpperCase(); }
+  function vCert() {
+    if (!S.exam || S.exam.best < 0.8) return "<div class='glass card empty'><div style='font-size:48px'>🔒</div><h2>Certificado bloqueado</h2><p class='muted'>Aprueba el examen final con un 80% para desbloquearlo.</p><button class='btn btn-primary mt16' data-go='#/examen'>Ir al examen</button></div>";
+    var d = new Date(S.exam.passedAt || S.exam.at);
+    var name = S.prefs.name || "Estudiante de Bastión";
+    return "<div class='cert-wrap reveal'><div class='certificate' id='certificate'><div class='cert-border'></div><div class='cert-logo'>B</div><div class='cert-k'>BASTIÓN · ACADEMIA DE SOBERANÍA DIGITAL</div><div class='cert-t'>Certificado de Dominio</div><div class='cert-s'>Se certifica que</div><div class='cert-name'>" + esc(name) + "</div><div class='cert-s'>ha completado y superado la evaluación final del programa de Privacidad, OPSEC y Soberanía Digital en la era de la IA, con una calificación de</div><div class='cert-score'>" + Math.round(S.exam.best * 100) + "%</div><div class='cert-foot'><div><b>" + d.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" }) + "</b><span>Fecha</span></div><div><b>" + rank().r.ico + " " + rank().r.name + "</b><span>Rango</span></div><div><b>" + S.exam.code + "</b><span>Código</span></div></div></div>" +
+      "<div class='row mt24' style='justify-content:center'><button class='btn btn-primary' data-act='printCert'>🖨 Imprimir / guardar PDF</button><button class='btn btn-ghost' data-act='editName'>✏️ Cambiar nombre</button><button class='btn btn-ghost' data-go='#/examen'>Volver</button></div><p class='muted mono' style='text-align:center;font-size:11px;margin-top:12px'>Certificado personal de autoformación generado en tu dispositivo. No es una titulación oficial.</p></div>";
+  }
+  function askName(first) {
+    openModal("<div style='text-align:center'><div class='onb-logo'>B</div><h2 style='margin:14px 0 6px'>" + (first ? "Bienvenido a Bastión" : "Tu nombre") + "</h2><p class='muted' style='font-size:14px'>" + (first ? "Tu academia personal de soberanía digital. Todo lo que hagas se guarda <b>solo en este dispositivo</b>." : "Se usa en saludos y en tu certificado. Se guarda solo en este dispositivo.") + "</p></div>" +
+      "<label class='lbl'>¿Cómo quieres que te llame? (opcional, puede ser un alias)</label><input class='input' id='onbName' maxlength='40' value='" + esc(S.prefs.name || "") + "' placeholder='Tu nombre o alias'/>" +
+      (first ? "<label class='row mt16' style='gap:10px;font-size:14px;cursor:pointer'><input type='checkbox' id='onbSound' checked style='accent-color:#00f5a0;width:18px;height:18px'/> Activar efectos de sonido</label>" : "") +
+      "<div class='row mt24' style='justify-content:flex-end'><button class='btn btn-primary' data-act='saveName'>" + (first ? "Empezar →" : "Guardar") + "</button></div>");
+    setTimeout(function () { var i = $("#onbName"); if (i) i.focus(); }, 60);
+  }
+
   function vNotFound() { return "<div class='glass card empty'><h2>404 · Esta casilla del tablero no existe</h2><button class='btn btn-primary mt16' data-go='#/'>Volver al inicio</button></div>"; }
 
   /* ---------------- Backup ---------------- */
@@ -782,7 +1001,7 @@
     T.glossary.forEach(function (g) { palIdx.push({ k: "Glosario", t: g[0], s: g[1], go: "#/glosario" }); });
     palIdx.forEach(function (it) { it.nt = norm(it.t); it.nx = norm(it.s + " " + (it.x || "")); });
   }
-  function openPalette() { $("#palette").classList.add("show"); var i = $("#palInput"); i.value = ""; drawPal(); setTimeout(function () { i.focus(); }, 30); }
+  function openPalette() { sfx.open(); $("#palette").classList.add("show"); var i = $("#palInput"); i.value = ""; drawPal(); setTimeout(function () { i.focus(); }, 30); }
   function closePalette() { $("#palette").classList.remove("show"); }
   function drawPal() {
     var q = norm($("#palInput").value), words = q.split(" ").filter(Boolean);
@@ -851,16 +1070,18 @@
         var st = l.steps.filter(function (_, si) { return S.steps[l.id + ":" + si]; }).length;
         $("#stepCount").textContent = st + "/" + l.steps.length + " pasos";
         $("#stepBar .progress i").style.width = Math.round(st / l.steps.length * 100) + "%";
+        if (S.steps[k]) { sfx.check(); xpFloat(e, "+5 XP"); } else sfx.uncheck();
         if (st === l.steps.length && !S.lessons[l.id]) toast("¡Todos los pasos hechos! Marca la lección como completada.", "🎯");
         commit(); break;
       case "lesson":
         l = LBY[el.dataset.l]; S.lessons[l.id] = !S.lessons[l.id]; if (!S.lessons[l.id]) delete S.lessons[l.id];
-        if (S.lessons[l.id]) { toast("+100 XP · Lección completada", "✅"); confetti(70); }
+        if (S.lessons[l.id]) { toast("+100 XP · Lección completada", "✅"); confetti(70); sfx.success(); xpFloat(e, "+100 XP", "#fbbf24"); } else sfx.uncheck();
         $("#completeBar").innerHTML = completeBarHTML(l);
         commit(); break;
       case "quiz":
         m = MBY[el.dataset.m]; var run = quizRun[m.id] || (quizRun[m.id] = {});
         run[+el.dataset.q] = +el.dataset.o;
+        if (run[+el.dataset.q] === m.quiz[+el.dataset.q].a) sfx.correct(); else sfx.wrong();
         if (Object.keys(run).length === m.quiz.length) {
           var ok = Object.keys(run).filter(function (k2) { return run[k2] === m.quiz[k2].a; }).length, sc = ok / m.quiz.length;
           var prevBest = S.quizzes[m.id] ? S.quizzes[m.id].best : 0;
@@ -877,7 +1098,7 @@
         if (e.target.closest("[data-go]")) return;
         var d = el.dataset.d; S.sprint[d] = !S.sprint[d]; if (!S.sprint[d]) delete S.sprint[d];
         el.classList.toggle("on", !!S.sprint[d]); el.querySelector(".dcheck").textContent = S.sprint[d] ? "✓" : "";
-        if (S.sprint[d]) toast("Día " + d + " completado · +30 XP", "⚡");
+        if (S.sprint[d]) { toast("Día " + d + " completado · +30 XP", "⚡"); sfx.check(); xpFloat(e, "+30 XP", "#fbbf24"); } else sfx.uncheck();
         commit();
         var g = document.querySelector(".hero .gauge"); if (g) g.outerHTML = "<div class='gauge'>" + gaugeSVG(sprintDone() / 30, "#fbbf24") + "<div class='gv'><div><b class='gold-text'>" + sprintDone() + "</b><span>DE 30 DÍAS</span></div></div></div>";
         break;
@@ -914,6 +1135,7 @@
         if (e.target.closest("[data-go]")) return;
         i = el.dataset.i; S.labs.audit[i] = !S.labs.audit[i]; if (!S.labs.audit[i]) delete S.labs.audit[i];
         el.classList.toggle("on", !!S.labs.audit[i]); el.querySelector(".cb").textContent = S.labs.audit[i] ? "✓" : "";
+        if (S.labs.audit[i]) sfx.check(); else sfx.uncheck();
         auditGauge(); commit(); break;
       case "tm":
         tmDraft.a[el.dataset.q] = +el.dataset.o;
@@ -932,8 +1154,36 @@
       case "resetAll": resetAll(); break;
       case "resetConfirm": S = blank(); quizRun = {}; save(); closeModal(); render(); toast("Progreso reiniciado", "🗑"); break;
       case "closeModal": closeModal(); break;
+      case "closeLevel": var ov = el.closest(".levelup"); ov.classList.remove("show"); setTimeout(function () { ov.remove(); }, 400); break;
+      case "flip": session.flipped = !session.flipped; el.classList.toggle("flipped", session.flipped); var fa = $(".fc-actions"); if (fa) fa.classList.toggle("show", session.flipped); sfx.flip(); break;
+      case "cardAns":
+        var c = session.q[session.i], rec = S.cards[c.id] || { b: 0 }, good = el.dataset.v === "1";
+        var wasMastered = rec.b >= 3;
+        rec.b = good ? Math.min(5, rec.b + 1) : 0;
+        rec.due = daysFromToday(BOX_DAYS[rec.b] || 1); if (!good) rec.due = daysFromToday(1);
+        S.cards[c.id] = rec;
+        if (good) { session.ok++; sfx.correct(); if (!wasMastered && rec.b >= 3) xpFloat(e, "+10 XP"); } else sfx.wrong();
+        session.i++; session.flipped = false; commit(); drawCard(); break;
+      case "newSession": session = null; render(); break;
+      case "examStart": startExam(); sfx.open(); break;
+      case "examAns":
+        if (exam.answered) break;
+        exam.answered = true; exam.choice = +el.dataset.o;
+        if (exam.choice === exam.q[exam.i].q.a) { exam.ok++; sfx.correct(); } else sfx.wrong();
+        drawExam(); break;
+      case "examNext": exam.i++; exam.answered = false; exam.choice = null; drawExam(); var es = $("#examStage"); if (es) es.scrollIntoView({ behavior: "smooth", block: "start" }); break;
+      case "printCert": window.print(); break;
+      case "editName": askName(false); break;
+      case "saveName":
+        S.prefs.name = ($("#onbName").value || "").trim().slice(0, 40);
+        var sb = $("#onbSound"); if (sb) S.prefs.sound = sb.checked;
+        S.prefs.onboarded = true; save(); closeModal(); soundBtn(); render(); sfx.success(); break;
     }
   }
+  function soundBtn() { var b = $("#soundBtn"); if (b) { b.textContent = S.prefs.sound ? "🔊" : "🔇"; b.title = S.prefs.sound ? "Sonido activado" : "Sonido desactivado"; } }
+  $("#soundBtn").addEventListener("click", function () { sfx.set(!S.prefs.sound); soundBtn(); if (S.prefs.sound) sfx.check(); toast(S.prefs.sound ? "Sonido activado" : "Sonido desactivado", S.prefs.sound ? "🔊" : "🔇"); });
+  soundBtn();
+  document.addEventListener("pointerdown", function (e) { if (e.target.closest(".btn, .chip, .tab, .quiz-opt")) sfx.tap(); }, true);
   var tmDraft = { a: {} };
 
   /* ---------------- PWA: instalación y modo sin conexión ---------------- */
@@ -954,7 +1204,10 @@
   });
 
   /* ---------------- Inicio ---------------- */
+  if (!S.rankIdx) { S.rankIdx = rank().lvl; save(); }
+  dailyXp();
   buildIndex();
   render();
-  if (!S.days.length) setTimeout(function () { toast("Bienvenido a BASTIÓN ACADEMY. Pulsa <b>Ctrl+K</b> para buscar cualquier cosa.", "🏰"); }, 900);
+  if (!S.prefs.onboarded) setTimeout(function () { askName(true); }, 700);
+  else if (!S.days.length) setTimeout(function () { toast("Pulsa <b>Ctrl+K</b> para buscar cualquier cosa.", "🏰"); }, 900);
 })();

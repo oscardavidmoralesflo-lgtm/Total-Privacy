@@ -1,18 +1,19 @@
 /* BASTIÓN ACADEMY · Service worker: funciona sin conexión.
    Al publicar una actualización, sube VERSION para que los móviles descarguen la nueva. */
-var VERSION = "bastion-v2.2";
+var VERSION = "bastion-v3.1";
 var ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./assets/styles.css?v=2.2",
-  "./assets/app.js?v=2.2",
-  "./assets/data/modules-a.js?v=2.2",
-  "./assets/data/modules-b.js?v=2.2",
-  "./assets/data/modules-c.js?v=2.2",
-  "./assets/data/modules-d.js?v=2.2",
-  "./assets/data/modules-e.js?v=2.2",
-  "./assets/data/extras.js?v=2.2",
+  "./assets/styles.css?v=3.1",
+  "./assets/app.js?v=3.1",
+  "./assets/data/modules-a.js?v=3.1",
+  "./assets/data/modules-b.js?v=3.1",
+  "./assets/data/modules-c.js?v=3.1",
+  "./assets/data/modules-d.js?v=3.1",
+  "./assets/data/modules-e.js?v=3.1",
+  "./assets/data/extras.js?v=3.1",
+  "./assets/data/refs.js?v=3.1",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
   "./assets/icons/icon-maskable-512.png",
